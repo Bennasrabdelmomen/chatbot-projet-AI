@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CV Interview Assistant</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f2f5;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: #333333;
+        }
+
+        #chatbox {
+            border: 1px solid #ddd;
+            padding: 15px;
+            height: 400px;
+            overflow-y: auto;
+            border-radius: 8px;
+            background: #f9f9f9;
+            margin-bottom: 20px;
+        }
+
+        .message {
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 8px;
+        }
+
+        .user {
+            background-color: #007bff;
+            color: white;
+            text-align: right;
+        }
+
+        .assistant {
+            background-color: #e9ecef;
+            color: #333333;
+            text-align: left;
+        }
+
+        form {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        textarea {
+            flex-grow: 1;
+            resize: none;
+            font-size: 16px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background: #f8f9fa;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            color: white;
+            background-color: #007bff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        #uploadButton {
+            background-color: #28a745;
+        }
+
+        #uploadButton:hover {
+            background-color: #218838;
+        }
+
+        #downloadButton {
+            background-color: #ffc107;
+        }
+
+        #downloadButton:hover {
+            background-color: #e0a800;
+        }
+
+        #clearButton {
+            background-color: #dc3545;
+        }
+
+        #clearButton:hover {
+            background-color: #c82333;
+        }
+
+        .custom-file-label {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            text-align: center;
+        }
+
+        .custom-file-label:hover {
+            background-color: #0056b3;
+        }
+
+        .custom-file-label i {
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>CV Interview Assistant</h1>
+
+        <form id="uploadForm" enctype="multipart/form-data">
+            <label for="cvFile" id="fileLabel" class="custom-file-label">
+                <i class="fas fa-upload"></i> Choose File
+            </label>
+            <input type="file" id="cvFile" name="cvFile" accept=".pdf" required hidden>
+            <button type="submit" id="uploadButton">Upload CV</button>
+        </form>
+
+        <div id="chatbox"></div>
+
+        <form id="conversationForm">
+            <textarea id="message" placeholder="Type your question here..." required></textarea>
+            <button type="submit">Send</button>
+        </form>
+
+        <div style="display: flex; justify-content: space-between; gap: 10px;">
+            <button id="clearButton">Clear Conversation</button>
+            <button id="downloadButton">Download Conversation Log</button>
+        </div>
+    </div>
+
+    <script>
+        const chatbox = document.getElementById("chatbox");
+        const uploadForm = document.getElementById("uploadForm");
+        const conversationForm = document.getElementById("conversationForm");
+        const messageInput = document.getElementById("message");
+        const downloadButton = document.getElementById("downloadButton");
+        const clearButton = document.getElementById("clearButton");
+        const fileInput = document.getElementById("cvFile");
+        const fileLabel = document.getElementById("fileLabel");
+
+        let cvUploaded = false;
+        let conversationHistory = [];
+
+        // Handle file input click
+        fileLabel.addEventListener("click", () => {
+            fileInput.click();
+        });
+
+        // Show selected file name on label
+        fileInput.addEventListener("change", () => {
+            const fileName = fileInput.files.length > 0 ? fileInput.files[0].name : "Choose File";
+            fileLabel.textContent = `📄 ${fileName}`;
+        });
+
+        // Handle CV file upload
+        uploadForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const formData = new FormData();
+
+            if (fileInput.files.length > 0) {
+                formData.append("file", fileInput.files[0]);
+
+                try {
+                    const response = await fetch("/upload_cv", {
+                        method: "POST",
+                        body: formData,
+                    });
+
+                    const result = await response.json();
+                    if (result.success) {
+                        alert("CV uploaded and processed successfully!");
+                        cvUploaded = true;
+                    } else {
+                        alert(`Failed to upload CV: ${result.message}`);
+                    }
+                } catch (error) {
+                    alert(`Error: ${error.message}`);
+                }
+            } else {
+                alert("Please select a file before uploading.");
+            }
+        });
+
+        // Handle conversation messages
+        conversationForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+
+            const userMessage = messageInput.value.trim();
+            if (!cvUploaded) {
+                alert("Please upload a CV before starting the conversation.");
+                return;
+            }
+
+            if (userMessage) {
+                appendMessage("user", userMessage);
+                messageInput.value = "";
+
+                try {
+                    const response = await fetch("/conversation", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ prompt: userMessage }),
+                    });
+
+                    if (!response.ok) {
+                        appendMessage("assistant", "Error: Unable to process the message.");
+                        return;
+                    }
+
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    let assistantMessage = "";
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        assistantMessage += decoder.decode(value);
+                        updateAssistantMessage(assistantMessage);
+                    }
+
+                    conversationHistory.push({ role: "assistant", content: assistantMessage.trim() });
+                } catch (error) {
+                    appendMessage("assistant", "Error: Unable to process the message.");
+                }
+            }
+        });
+
+        // Clear chatbox and reset conversation
+        clearButton.addEventListener("click", () => {
+            chatbox.innerHTML = "";
+            conversationHistory = [];
+            alert("Conversation cleared!");
+        });
+
+        // Download conversation log
+        downloadButton.addEventListener("click", () => {
+            const logContent = conversationHistory
+                .map((msg) => `${msg.role === "user" ? "You" : "Assistant"}: ${msg.content}`)
+                .join("\n");
+
+            const blob = new Blob([logContent], { type: "text/plain" });
+            const url = URL.createObjectURL(blob);
+
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = "conversation_log.txt";
+            link.click();
+
+            URL.revokeObjectURL(url);
+        });
+
+        // Append messages to chatbox
+        function appendMessage(role, message) {
+            const messageElement = document.createElement("div");
+            messageElement.className = `message ${role}`;
+            messageElement.textContent = message;
+            chatbox.appendChild(messageElement);
+            chatbox.scrollTop = chatbox.scrollHeight;
+        }
+
+        // Update the assistant message dynamically
+        function updateAssistantMessage(message) {
+            const lastAssistantMessage = chatbox.querySelector(".message.assistant:last-child");
+            if (lastAssistantMessage) {
+                lastAssistantMessage.textContent = message;
+            } else {
+                appendMessage("assistant", message);
+            }
+        }
+    </script>
+</body>
+</html>

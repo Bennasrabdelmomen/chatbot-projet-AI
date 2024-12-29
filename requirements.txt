@@ -1,0 +1,6 @@
+PyPDF2
+flask
+logging
+threading
+json
+fitz
